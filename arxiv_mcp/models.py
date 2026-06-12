@@ -29,3 +29,22 @@ class Paper:
     def html_url(self) -> str:
         """ar5iv HTML rendering of the paper (LaTeX → HTML)."""
         return f"https://ar5iv.org/abs/{self.arxiv_id}"
+
+
+@dataclass
+class CitationPaper:
+    """A paper in a citation / reference list (lighter weight)."""
+
+    arxiv_id: Optional[str]
+    semantic_scholar_id: Optional[str]
+    title: str
+    authors: List[str]
+    year: Optional[int]
+    citation_count: int
+    influential_citation_count: int
+    abstract_url: Optional[str]
+    pdf_url: Optional[str]
+    venue: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)

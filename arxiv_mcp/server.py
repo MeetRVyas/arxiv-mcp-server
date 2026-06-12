@@ -1,10 +1,30 @@
+"""
+ArXiv MCP Server
+================
+A production-grade MCP server exposing ArXiv and Semantic Scholar data to LLM agents.
+
+Tools
+-----
+  search_papers          — keyword / field search across all of ArXiv
+  get_paper_details      — full metadata for a specific paper (enriched with SS data)
+  get_paper_pdf_url      — direct PDF + HTML links ready for RAG ingestion
+  get_recent_papers      — "what landed in cs.LG this week?"
+  get_related_papers     — reference list of a paper (Semantic Scholar)
+  get_paper_citations    — papers that cite a given paper (forward citations)
+  get_author_papers      — all ArXiv papers by a researcher
+  search_by_category     — keyword search scoped to one ArXiv category
+  search_title           — search specifically in paper titles
+  batch_get_papers       — fetch up to 20 papers in a single round-trip
+  search_semantic_scholar— broader search including non-ArXiv papers + citation counts
+"""
+
 import logging
 import sys
 from typing import Any, Dict, List, Optional
 
 from fastmcp import FastMCP
 
-from .arxiv import (
+from arxiv_mcp.arxiv import (
     fetch_paper_by_id,
     fetch_papers_by_ids,
     get_author_papers      as _author_papers,
@@ -13,6 +33,12 @@ from .arxiv import (
     search_by_category     as _search_by_cat,
     search_by_title        as _search_by_title,
     _strip_version,
+)
+from arxiv_mcp.semantic_scholar import (
+    get_citations          as _citations,
+    get_paper_metadata     as _ss_metadata,
+    get_references         as _references,
+    search_semantic_scholar as _ss_search,
 )
 
 # Logging
@@ -27,12 +53,15 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP(
     name="ArXiv MCP Server",
     instructions="""
-You have access to ArXiv through these tools.
+You have access to ArXiv and Semantic Scholar through these tools.
 
 Guidance:
 - Use `search_papers` for broad keyword queries first; narrow with `search_by_category` when the domain is clear.
+- Prefer `get_paper_details` after a search to fetch full abstracts and citation counts.
 - Use `get_paper_pdf_url` to get a PDF link for RAG / document ingestion pipelines.
 - Use `get_recent_papers` when the user wants to know what is new in a field.
+- Use `get_related_papers` + `get_paper_citations` together to explore a citation graph.
+- `search_semantic_scholar` is broader — it includes conference/journal papers not on ArXiv.
 - Always present: arxiv_id, title, authors, abstract, pdf_url in your summaries.
 - ArXiv category codes: cs.LG, cs.AI, cs.CL, cs.CV, cs.RO, stat.ML, eess.IV, math.OC, q-bio.NC
     """,
@@ -96,6 +125,42 @@ def search_papers(
     if not papers:
         return [{"message": "No papers found. Try broader or different keywords."}]
     return [p.to_dict() for p in papers]
+
+
+# Tool: get_paper_details
+@mcp.tool()
+def get_paper_details(arxiv_id: str) -> Dict[str, Any]:
+    """
+    Retrieve full metadata for a specific ArXiv paper, enriched with
+    citation counts and fields-of-study from Semantic Scholar.
+
+    Args:
+        arxiv_id: ArXiv paper ID — e.g. '1706.03762', '2301.00001', 'cs/0001001'.
+                  Version suffixes ('v2', 'v3') are accepted and stripped.
+
+    Returns:
+        Full paper record including title, authors, abstract, categories, DOI,
+        journal reference, citation_count, influential_citation_count, fields_of_study.
+    """
+    logger.info(f"get_paper_details id={arxiv_id!r}")
+    paper = fetch_paper_by_id(arxiv_id)
+
+    if not paper:
+        return {"error": f"Paper '{arxiv_id}' not found. Check the ID is correct."}
+
+    result = paper.to_dict()
+    result["html_url"] = paper.html_url     # ar5iv HTML rendering
+
+    # Enrich with Semantic Scholar metadata (best-effort)
+    ss = _ss_metadata(paper.arxiv_id)
+    if ss:
+        result["citation_count"]             = ss.get("citation_count")
+        result["influential_citation_count"] = ss.get("influential_citation_count")
+        result["fields_of_study"]            = ss.get("fields_of_study", [])
+        result["venue"]                      = ss.get("venue")
+        result["semantic_scholar_id"]        = ss.get("semantic_scholar_id")
+
+    return result
 
 
 # Tool: get_paper_pdf_url
@@ -168,6 +233,83 @@ def get_recent_papers(
             )
         }]
     return [p.to_dict() for p in papers]
+
+
+# Tool: get_related_papers
+@mcp.tool()
+def get_related_papers(
+    arxiv_id: str,
+    max_results: int = 10,
+) -> Dict[str, Any]:
+    """
+    Get papers referenced by the given paper (its bibliography / related work).
+    Uses Semantic Scholar's citation graph. Excellent for tracing intellectual lineage.
+
+    Args:
+        arxiv_id   : ArXiv paper ID (e.g. '1706.03762')
+        max_results: Number of references to return, 1–30 (default 10)
+
+    Returns:
+        Dict with 'arxiv_id', 'total_returned', and a 'related_papers' list.
+        Each entry includes title, authors, year, arxiv_id (if available), and citation_count.
+    """
+    max_results = _clamp(max_results, 1, 30)
+    logger.info(f"get_related_papers id={arxiv_id!r} max={max_results}")
+
+    refs = _references(arxiv_id, max_results=max_results)
+    if not refs:
+        return {
+            "arxiv_id": arxiv_id,
+            "message": (
+                "No references found. The paper may not yet be indexed in Semantic Scholar "
+                "(papers typically appear within a few days of ArXiv submission)."
+            ),
+            "related_papers": [],
+        }
+
+    return {
+        "arxiv_id":       arxiv_id,
+        "total_returned": len(refs),
+        "related_papers": refs,
+    }
+
+
+# Tool: get_paper_citations
+@mcp.tool()
+def get_paper_citations(
+    arxiv_id: str,
+    max_results: int = 20,
+) -> Dict[str, Any]:
+    """
+    Get papers that cite the given paper (forward / incoming citations).
+    Use this to find follow-up work, extensions, or applications of a paper.
+
+    Args:
+        arxiv_id   : ArXiv paper ID
+        max_results: Number of citing papers to return, 1–50 (default 20)
+
+    Returns:
+        Dict with 'arxiv_id', 'citations_returned', and 'citing_papers' list.
+    """
+    max_results = _clamp(max_results, 1, 50)
+    logger.info(f"get_paper_citations id={arxiv_id!r} max={max_results}")
+
+    citations = _citations(arxiv_id, max_results=max_results)
+    if not citations:
+        return {
+            "arxiv_id": arxiv_id,
+            "message": (
+                "No citations found. The paper may be too recent, have few citations, "
+                "or not yet indexed in Semantic Scholar."
+            ),
+            "citing_papers": [],
+        }
+
+    return {
+        "arxiv_id":           arxiv_id,
+        "citations_returned": len(citations),
+        "citing_papers":      citations,
+    }
 
 
 # Tool: get_author_papers
@@ -302,6 +444,44 @@ def batch_get_papers(arxiv_ids: List[str]) -> Dict[str, Any]:
         "not_found": not_found,
         "papers":    [p.to_dict() for p in papers],
     }
+
+
+# Tool: search_semantic_scholar
+@mcp.tool()
+def search_semantic_scholar(
+    query: str,
+    max_results: int = 10,
+    fields_of_study: Optional[List[str]] = None,
+    year_range: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Search Semantic Scholar — broader than ArXiv (includes journals, conference papers,
+    and non-preprint work). Returns citation counts and influence metrics.
+
+    Args:
+        query          : Keyword query
+        max_results    : Results to return, 1–50 (default 10)
+        fields_of_study: Optional filter list, e.g. ['Computer Science', 'Mathematics']
+                         Valid values: Computer Science, Physics, Mathematics, Medicine,
+                         Biology, Chemistry, Economics, Engineering, etc.
+        year_range     : Optional year filter, e.g. '2020-2024', '2023-', '-2020'
+
+    Returns:
+        List of papers with title, authors, year, citation_count,
+        influential_citation_count, venue, fields_of_study, abstract_url.
+    """
+    max_results = _clamp(max_results, 1, 50)
+    logger.info(f"search_semantic_scholar query={query!r} max={max_results}")
+
+    results = _ss_search(
+        query,
+        max_results=max_results,
+        fields_of_study=fields_of_study,
+        year_range=year_range,
+    )
+    if not results:
+        return [{"message": "No results from Semantic Scholar for this query."}]
+    return results
 
 
 # Entry point

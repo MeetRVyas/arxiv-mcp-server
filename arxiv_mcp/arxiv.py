@@ -14,7 +14,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from .models import Paper
+from arxiv_mcp.models import Paper
 
 logger = logging.getLogger(__name__)
 
