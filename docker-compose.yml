@@ -1,0 +1,31 @@
+services:
+
+  arxiv-mcp:
+    build:
+      context: .
+      target: runtime
+    image: arxiv-mcp-server:latest
+    container_name: arxiv_mcp
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY:-} # https://www.semanticscholar.org/product/api
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    # Sensible resource limits for a network-I/O-bound service
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
