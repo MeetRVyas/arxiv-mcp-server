@@ -33,7 +33,9 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     LOG_LEVEL=INFO \
     PORT=8000 \
-    HOST=0.0.0.0
+    HOST=0.0.0.0 \
+    FASTMCP_SHOW_SERVER_BANNER=false \
+    FASTMCP_CHECK_FOR_UPDATES=false
 
 EXPOSE 8000
 
@@ -42,4 +44,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     || exit 1
 
 ENTRYPOINT ["arxiv-mcp-server"]
-CMD ["--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["--transport", "streamable-http"]

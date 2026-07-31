@@ -5,70 +5,85 @@ Wraps the ArXiv Atom/XML API (https://arxiv.org/help/api/user-manual).
 No authentication required. Rate-limited to 1 req/3 s per ArXiv guidelines.
 """
 
-import logging
-import time
-import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+from __future__ import annotations
 
+import logging
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import defusedxml.ElementTree as ET
+import requests
+
+from arxiv_mcp.config import get_settings
+from arxiv_mcp.errors import UpstreamUnavailableError, ValidationError
+from arxiv_mcp.http_utils import build_retry_session, call_with_deadline
 from arxiv_mcp.models import Paper
+from arxiv_mcp.rate_limiter import RateLimiter
+from arxiv_mcp.validation import validate_arxiv_id
 
 logger = logging.getLogger(__name__)
 
 # Constants
-ARXIV_API_BASE = "http://export.arxiv.org/api/query"
+ARXIV_API_BASE = "https://export.arxiv.org/api/query"
 
 # XML namespaces used in ArXiv Atom feed
-ATOM_NS  = "http://www.w3.org/2005/Atom"
+ATOM_NS = "http://www.w3.org/2005/Atom"
 ARXIV_NS = "http://arxiv.org/schemas/atom"
 
-# ArXiv recommends no more than 1 request every 3 seconds for automated access
+# ArXiv recommends no more than 1 request every 3 seconds for automated
+# access. Single shared, thread-safe limiter.
 _RATE_LIMIT_DELAY = 3.0
-_last_request_time: float = 0.0
+_rate_limiter = RateLimiter(_RATE_LIMIT_DELAY)
 
-# Hard cap to stay well within ArXiv's acceptable-use policy
-MAX_RESULTS_CAP = 100
+# Hard cap on results per request
+MAX_RESULTS_CAP = 50
+
+_USER_AGENT = "ArXivMCPServer/1.0 (https://github.com/MeetRVyas/arxiv-mcp-server; research tool)"
 
 
 # HTTP Session
-def _build_session() -> requests.Session:
-    session = requests.Session()
-    retry = Retry(
-        total=4,
-        backoff_factor=2.0,                        # 2 s, 4 s, 8 s, 16 s
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"],
-        raise_on_status=False,
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-    # Polite User-Agent as requested by ArXiv ToS
-    session.headers.update({
-        "User-Agent": "ArXivMCPServer/1.0 (https://github.com/MeetRVyas/arxiv-mcp-server; research tool)"
-    })
-    return session
+_session = build_retry_session(user_agent=_USER_AGENT)
 
 
-_session = _build_session()
-
-
-def _rate_limited_get(url: str, params: dict, timeout: int = 30) -> requests.Response:
-    """GET with rate limiting and raise_for_status."""
-    global _last_request_time
-    elapsed = time.monotonic() - _last_request_time
-    if elapsed < _RATE_LIMIT_DELAY:
-        sleep_for = _RATE_LIMIT_DELAY - elapsed
-        logger.debug(f"Rate-limit sleep {sleep_for:.2f}s")
-        time.sleep(sleep_for)
+def _rate_limited_get(url: str, params: dict[str, Any], timeout: int = 10) -> requests.Response:
+    """GET with rate limiting, a hard overall deadline, and full error handling."""
+    _rate_limiter.wait()
 
     logger.debug(f"GET {url}  params={params}")
-    resp = _session.get(url, params=params, timeout=timeout)
-    _last_request_time = time.monotonic()
-    resp.raise_for_status()
+    settings = get_settings()
+    try:
+        resp = call_with_deadline(
+            _session.get,
+            url,
+            params=params,
+            timeout=timeout,
+            deadline_seconds=settings.request_deadline_seconds,
+            upstream_name="ArXiv",
+        )
+    except UpstreamUnavailableError:
+        raise
+    except requests.RequestException as exc:
+        logger.warning(f"ArXiv request failed: {exc}")
+        raise UpstreamUnavailableError(
+            "Could not reach ArXiv right now. This is usually temporary — try again shortly."
+        ) from exc
+
+    if resp.status_code == 400:
+        # A malformed search_query (bad field prefix, unbalanced quotes, etc.)
+        # is the caller's fault, not an outage — surface it as validation,
+        # not a generic upstream failure.
+        raise ValidationError(
+            "ArXiv rejected this query as malformed (HTTP 400). Check field-prefix "
+            "syntax (ti:, au:, abs:, cat:, all:) and that quotes/parentheses are balanced."
+        )
+    try:
+        resp.raise_for_status()
+    except requests.HTTPError as exc:
+        logger.warning(f"ArXiv returned HTTP {resp.status_code}: {exc}")
+        raise UpstreamUnavailableError(
+            f"ArXiv returned an error (HTTP {resp.status_code}) after retries. Try again shortly."
+        ) from exc
+
     return resp
 
 
@@ -76,7 +91,7 @@ def _rate_limited_get(url: str, params: dict, timeout: int = 30) -> requests.Res
 _NS = {"atom": ATOM_NS, "arxiv": ARXIV_NS}
 
 
-def _text(el: ET.Element, tag: str) -> Optional[str]:
+def _text(el: ET.Element, tag: str) -> str | None:
     """Return stripped text of a child element, or None."""
     child = el.find(tag, _NS)
     return child.text.strip() if child is not None and child.text else None
@@ -93,8 +108,8 @@ def _extract_arxiv_id(entry_id_url: str) -> str:
         http://arxiv.org/abs/2301.00001v2
     Strip the base URL and any version suffix.
     """
-    raw = entry_id_url.split("/abs/")[-1]   # "2301.00001v2"
-    return raw.rsplit("v", 1)[0] if raw[-1].isdigit() and "v" in raw else raw
+    raw = entry_id_url.split("/abs/")[-1]  # "2301.00001v2"
+    return raw.rsplit("v", 1)[0] if raw and raw[-1].isdigit() and "v" in raw else raw
 
 
 def _parse_entry(entry: ET.Element) -> Paper:
@@ -102,7 +117,7 @@ def _parse_entry(entry: ET.Element) -> Paper:
     entry_id_url = _text(entry, "atom:id") or ""
     arxiv_id = _extract_arxiv_id(entry_id_url)
 
-    title    = _clean_whitespace(_text(entry, "atom:title") or "")
+    title = _clean_whitespace(_text(entry, "atom:title") or "")
     abstract = _clean_whitespace(_text(entry, "atom:summary") or "")
 
     authors = [
@@ -113,7 +128,7 @@ def _parse_entry(entry: ET.Element) -> Paper:
     ]
 
     published = _text(entry, "atom:published") or ""
-    updated   = _text(entry, "atom:updated") or ""
+    updated = _text(entry, "atom:updated") or ""
 
     # Primary category
     prim_el = entry.find("arxiv:primary_category", _NS)
@@ -121,9 +136,7 @@ def _parse_entry(entry: ET.Element) -> Paper:
 
     # All categories
     categories = [
-        cat.get("term", "")
-        for cat in entry.findall("atom:category", _NS)
-        if cat.get("term")
+        cat.get("term", "") for cat in entry.findall("atom:category", _NS) if cat.get("term")
     ]
 
     # Links — ArXiv provides two: rel="alternate" (abstract page) and title="pdf"
@@ -158,10 +171,10 @@ def _parse_entry(entry: ET.Element) -> Paper:
     )
 
 
-def _parse_feed(xml_text: str) -> List[Paper]:
+def _parse_feed(xml_text: str) -> list[Paper]:
     """Parse the full Atom feed and return a list of Papers."""
     root = ET.fromstring(xml_text)
-    papers: List[Paper] = []
+    papers: list[Paper] = []
     for entry in root.findall(f"{{{ATOM_NS}}}entry"):
         try:
             papers.append(_parse_entry(entry))
@@ -177,7 +190,7 @@ def search_arxiv(
     sort_by: str = "relevance",
     sort_order: str = "descending",
     start: int = 0,
-) -> List[Paper]:
+) -> list[Paper]:
     """
     Generic ArXiv search.
 
@@ -200,18 +213,18 @@ def search_arxiv(
     return _parse_feed(resp.text)
 
 
-def fetch_paper_by_id(arxiv_id: str) -> Optional[Paper]:
+def fetch_paper_by_id(arxiv_id: str) -> Paper | None:
     """Fetch a single paper by its ArXiv ID (version suffix is stripped)."""
-    clean_id = _strip_version(arxiv_id)
+    clean_id = _strip_version(validate_arxiv_id(arxiv_id))
     params = {"id_list": clean_id, "max_results": 1}
     resp = _rate_limited_get(ARXIV_API_BASE, params)
     papers = _parse_feed(resp.text)
     return papers[0] if papers else None
 
 
-def fetch_papers_by_ids(arxiv_ids: List[str]) -> List[Paper]:
+def fetch_papers_by_ids(arxiv_ids: list[str]) -> list[Paper]:
     """Fetch multiple papers in one HTTP call using the id_list parameter."""
-    clean_ids = ",".join(_strip_version(aid) for aid in arxiv_ids)
+    clean_ids = ",".join(_strip_version(validate_arxiv_id(aid)) for aid in arxiv_ids)
     params = {"id_list": clean_ids, "max_results": len(arxiv_ids)}
     resp = _rate_limited_get(ARXIV_API_BASE, params)
     return _parse_feed(resp.text)
@@ -221,12 +234,12 @@ def get_recent_papers(
     category: str,
     days_back: int = 7,
     max_results: int = 20,
-) -> List[Paper]:
+) -> list[Paper]:
     """
     Papers submitted to `category` in the last `days_back` days.
     Uses ArXiv's submittedDate range filter.
     """
-    now   = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now - timedelta(days=days_back)
     # ArXiv date format for submittedDate filter: YYYYMMDD*
     date_range = f"[{start.strftime('%Y%m%d')}* TO {now.strftime('%Y%m%d')}*]"
@@ -243,7 +256,7 @@ def get_author_papers(
     author_name: str,
     max_results: int = 10,
     sort_by: str = "submittedDate",
-) -> List[Paper]:
+) -> list[Paper]:
     """Papers authored by `author_name`. Supports partial names."""
     query = f'au:"{author_name}"'
     return search_arxiv(query, max_results=max_results, sort_by=sort_by, sort_order="descending")
@@ -254,27 +267,31 @@ def search_by_category(
     query: str,
     max_results: int = 10,
     sort_by: str = "relevance",
-) -> List[Paper]:
+) -> list[Paper]:
     """Keyword search scoped to a specific ArXiv category."""
     full_query = f"cat:{category} AND ({query})"
     return search_arxiv(full_query, max_results=max_results, sort_by=sort_by)
 
 
-def search_by_title(title: str, max_results: int = 10) -> List[Paper]:
+def search_by_title(title: str, max_results: int = 10) -> list[Paper]:
     """Search specifically in paper titles."""
     return search_arxiv(f"ti:{title}", max_results=max_results)
 
 
-def search_by_abstract(terms: str, max_results: int = 10) -> List[Paper]:
+def search_by_abstract(terms: str, max_results: int = 10) -> list[Paper]:
     """Search specifically in abstracts."""
     return search_arxiv(f"abs:{terms}", max_results=max_results)
 
 
 # Utilities
 def _strip_version(arxiv_id: str) -> str:
-    """Remove version suffix: '1706.03762v5' → '1706.03762'."""
+    """Remove version suffix: '1706.03762v5' → '1706.03762'.
+
+    Callers are expected to have already run `validate_arxiv_id` on `arxiv_id`
+    (every call site in this module does), so this no longer needs its own
+    empty-string guard — but it's kept defensive regardless.
+    """
     aid = arxiv_id.strip()
-    # Pattern: ends with vN where N is a digit
-    if aid[-1].isdigit() and "v" in aid:
+    if aid and aid[-1].isdigit() and "v" in aid:
         return aid.rsplit("v", 1)[0]
     return aid

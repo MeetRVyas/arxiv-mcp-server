@@ -10,19 +10,19 @@ class Paper:
 
     arxiv_id: str
     title: str
-    authors: List[str]
+    authors: list[str]
     abstract: str
-    published: str          # ISO 8601, e.g. "2023-01-01T00:00:00Z"
+    published: str # ISO 8601, e.g. "2023-01-01T00:00:00Z"
     updated: str
     primary_category: str
-    categories: List[str]
+    categories: list[str]
     pdf_url: str
     abstract_url: str
-    doi: Optional[str] = None
-    journal_ref: Optional[str] = None
-    comment: Optional[str] = None   # Author-submitted comment (e.g. "15 pages, 4 figures")
+    doi: str | None = None
+    journal_ref: str | None = None
+    comment: str | None = None # Author-submitted comment (e.g. "15 pages, 4 figures")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @property
@@ -35,16 +35,16 @@ class Paper:
 class CitationPaper:
     """A paper in a citation / reference list (lighter weight)."""
 
-    arxiv_id: Optional[str]
-    semantic_scholar_id: Optional[str]
+    arxiv_id: str | None
+    semantic_scholar_id: str | None
     title: str
-    authors: List[str]
-    year: Optional[int]
+    authors: list[str]
+    year: int | None
     citation_count: int
     influential_citation_count: int
-    abstract_url: Optional[str]
-    pdf_url: Optional[str]
-    venue: Optional[str] = None
+    abstract_url: str | None
+    pdf_url: str | None
+    venue: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
