@@ -10,6 +10,7 @@ instead.
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -49,7 +50,10 @@ class Settings(BaseSettings):
 
     # FastMCP startup polish
     show_server_banner: bool = Field(default=True, alias="FASTMCP_SHOW_SERVER_BANNER")
-    check_for_updates: bool = Field(default=True, alias="FASTMCP_CHECK_FOR_UPDATES")
+    check_for_updates: Literal["stable", "prerelease", "off"] = Field(
+        default="stable",
+        alias="FASTMCP_CHECK_FOR_UPDATES",
+    )
 
     @field_validator("log_level")
     @classmethod
