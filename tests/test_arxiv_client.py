@@ -14,28 +14,34 @@ from arxiv_mcp.errors import UpstreamUnavailableError, ValidationError
 class TestStripVersion:
     def test_strips_version(self):
         from arxiv_mcp.arxiv import _strip_version
+
         assert _strip_version("1706.03762v5") == "1706.03762"
 
     def test_no_version(self):
         from arxiv_mcp.arxiv import _strip_version
+
         assert _strip_version("1706.03762") == "1706.03762"
 
     def test_old_format(self):
         from arxiv_mcp.arxiv import _strip_version
+
         assert _strip_version("cs/0001001") == "cs/0001001"
 
     def test_strips_whitespace(self):
         from arxiv_mcp.arxiv import _strip_version
+
         assert _strip_version("  2301.00001v2  ") == "2301.00001"
 
 
 class TestExtractArxivId:
     def test_standard_id(self):
         from arxiv_mcp.arxiv import _extract_arxiv_id
+
         assert _extract_arxiv_id("http://arxiv.org/abs/1706.03762v5") == "1706.03762"
 
     def test_no_version(self):
         from arxiv_mcp.arxiv import _extract_arxiv_id
+
         assert _extract_arxiv_id("http://arxiv.org/abs/2301.00001") == "2301.00001"
 
 
@@ -70,6 +76,7 @@ class TestParseFeed:
             "",
         )
         from arxiv_mcp.arxiv import _parse_feed
+
         papers = _parse_feed(feed_no_pdf)
         assert papers[0].pdf_url == "https://arxiv.org/pdf/1706.03762"
 
@@ -115,6 +122,7 @@ class TestSearchArxiv:
         mock_get.return_value = mock_resp
 
         from arxiv_mcp.arxiv import search_arxiv
+
         papers = search_arxiv("transformer", max_results=1)
         assert len(papers) == 1
         assert papers[0].title == "Attention Is All You Need"
@@ -126,6 +134,7 @@ class TestSearchArxiv:
         mock_get.return_value = mock_resp
 
         from arxiv_mcp.arxiv import search_arxiv
+
         assert search_arxiv("zzznomatch") == []
 
     @patch("arxiv_mcp.arxiv._rate_limited_get")

@@ -19,8 +19,7 @@ from starlette.types import ASGIApp
 
 
 class PerIPRateLimitMiddleware(BaseHTTPMiddleware):
-    """A simple fixed-window per-IP request limiter.
-    """
+    """A simple fixed-window per-IP request limiter."""
 
     def __init__(self, app: ASGIApp, requests_per_minute: int = 30) -> None:
         super().__init__(app)

@@ -1,4 +1,4 @@
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 LITERATURE_REVIEW = """
 # Objective
@@ -149,8 +149,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Conduct a comprehensive literature review by synthesizing foundational, influential, and recent research into coherent themes.",
     )
     def literature_review_prompt(topic: str) -> str:
-        return LITERATURE_REVIEW.format(topic = topic)
-
+        return LITERATURE_REVIEW.format(topic=topic)
 
     @mcp.prompt(
         name="survey_generator",
@@ -158,8 +157,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Generate a survey-style synthesis of a research field by organizing the literature into themes, comparing approaches, and identifying future directions.",
     )
     def survey_generator_prompt(topic: str) -> str:
-        return SURVEY_GENERATOR.format(topic = topic)
-
+        return SURVEY_GENERATOR.format(topic=topic)
 
     @mcp.prompt(
         name="field_digest",
@@ -177,11 +175,10 @@ def register_prompts(mcp: FastMCP) -> None:
             categories=", ".join(categories) if categories else "Auto-detect",
         )
 
-
     @mcp.prompt(
         name="state_of_the_art",
         title="State of the Art",
         description="Identify and compare the current leading approaches, benchmarks, and open challenges in a research area.",
     )
     def state_of_the_art_prompt(topic: str) -> str:
-        return STATE_OF_THE_ART.format(topic = topic)
+        return STATE_OF_THE_ART.format(topic=topic)

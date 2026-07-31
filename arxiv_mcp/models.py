@@ -1,7 +1,7 @@
 """Data models for ArXiv MCP Server."""
 
-from dataclasses import dataclass, asdict
-from typing import Any, Dict, List, Optional
+from dataclasses import asdict, dataclass
+from typing import Any
 
 
 @dataclass
@@ -12,7 +12,7 @@ class Paper:
     title: str
     authors: list[str]
     abstract: str
-    published: str # ISO 8601, e.g. "2023-01-01T00:00:00Z"
+    published: str  # ISO 8601, e.g. "2023-01-01T00:00:00Z"
     updated: str
     primary_category: str
     categories: list[str]
@@ -20,7 +20,7 @@ class Paper:
     abstract_url: str
     doi: str | None = None
     journal_ref: str | None = None
-    comment: str | None = None # Author-submitted comment (e.g. "15 pages, 4 figures")
+    comment: str | None = None  # Author-submitted comment (e.g. "15 pages, 4 figures")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

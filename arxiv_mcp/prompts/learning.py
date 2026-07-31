@@ -1,4 +1,4 @@
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 EXPLAIN_PAPER = """
 # Objective
@@ -162,8 +162,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Explain an ArXiv paper by developing conceptual understanding of its motivation, methodology, findings, and significance.",
     )
     def explain_paper_prompt(arxiv_id: str) -> str:
-        return EXPLAIN_PAPER.format(arxiv_id = arxiv_id)
-
+        return EXPLAIN_PAPER.format(arxiv_id=arxiv_id)
 
     @mcp.prompt(
         name="research_timeline",
@@ -171,8 +170,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Construct a chronological narrative of how a research field evolved through major milestones and breakthroughs.",
     )
     def research_timeline_prompt(topic: str) -> str:
-        return RESEARCH_TIMELINE.format(topic = topic)
-
+        return RESEARCH_TIMELINE.format(topic=topic)
 
     @mcp.prompt(
         name="method_evolution",
@@ -180,8 +178,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Trace how a research method or technique evolved through major conceptual and methodological improvements.",
     )
     def method_evolution_prompt(method: str) -> str:
-        return METHOD_EVOLUTION.format(method = method)
-
+        return METHOD_EVOLUTION.format(method=method)
 
     @mcp.prompt(
         name="research_brief",
@@ -189,8 +186,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Produce a concise executive briefing summarizing the current state and direction of a research area.",
     )
     def research_brief_prompt(topic: str) -> str:
-        return RESEARCH_BRIEF.format(topic = topic)
-
+        return RESEARCH_BRIEF.format(topic=topic)
 
     @mcp.prompt(
         name="research_mentor",
@@ -198,4 +194,4 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Act as an adaptive research mentor by guiding learning, recommending literature, and suggesting future research directions.",
     )
     def research_mentor_prompt(topic: str) -> str:
-        return RESEARCH_MENTOR.format(topic = topic)
+        return RESEARCH_MENTOR.format(topic=topic)

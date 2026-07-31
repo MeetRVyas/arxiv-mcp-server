@@ -1,4 +1,4 @@
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 CLAIM_CHECK = """
 # Objective
@@ -149,11 +149,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Recommend and compare research techniques best suited to solving a given scientific or engineering problem.",
     )
     def technique_selector_prompt(problem: str) -> str:
-        return TECHNIQUE_SELECTOR.format(problem = problem)
-
-
-    
-
+        return TECHNIQUE_SELECTOR.format(problem=problem)
 
     @mcp.prompt(
         name="evidence_matrix",
@@ -161,8 +157,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Organize the literature into supporting, contradicting, partial, and inconclusive evidence for a research question.",
     )
     def evidence_matrix_prompt(question: str) -> str:
-        return EVIDENCE_MATRIX.format(question = question)
-
+        return EVIDENCE_MATRIX.format(question=question)
 
     @mcp.prompt(
         name="paper_recommender",
@@ -170,8 +165,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Recommend research papers tailored to a specific learning, implementation, or research objective.",
     )
     def paper_recommender_prompt(goal: str) -> str:
-        return PAPER_RECOMMENDER.format(goal = goal)
-
+        return PAPER_RECOMMENDER.format(goal=goal)
 
     @mcp.prompt(
         name="claim_check",
@@ -179,4 +173,4 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Evaluate whether the scientific literature supports, contradicts, or refines a research claim.",
     )
     def claim_check_prompt(claim: str) -> str:
-        return CLAIM_CHECK.format(claim = claim)
+        return CLAIM_CHECK.format(claim=claim)

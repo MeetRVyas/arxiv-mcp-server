@@ -54,9 +54,17 @@ from arxiv_mcp.arxiv import (
 )
 from arxiv_mcp.arxiv import (
     get_author_papers as _author_papers,
+)
+from arxiv_mcp.arxiv import (
     get_recent_papers as _recent_papers,
+)
+from arxiv_mcp.arxiv import (
     search_by_abstract as _search_by_abstract,
+)
+from arxiv_mcp.arxiv import (
     search_by_category as _search_by_cat,
+)
+from arxiv_mcp.arxiv import (
     search_by_title as _search_by_title,
 )
 from arxiv_mcp.config import get_settings
@@ -68,12 +76,18 @@ from arxiv_mcp.errors import (
     error_envelope,
 )
 from arxiv_mcp.middleware import PerIPRateLimitMiddleware, StaticTokenVerifier
-from arxiv_mcp.resources import register_resources
 from arxiv_mcp.prompts import register_prompts
+from arxiv_mcp.resources import register_resources
 from arxiv_mcp.semantic_scholar import (
     get_citations as _citations,
+)
+from arxiv_mcp.semantic_scholar import (
     get_paper_metadata as _ss_metadata,
+)
+from arxiv_mcp.semantic_scholar import (
     get_references as _references,
+)
+from arxiv_mcp.semantic_scholar import (
     search_semantic_scholar as _ss_search,
 )
 from arxiv_mcp.validation import (

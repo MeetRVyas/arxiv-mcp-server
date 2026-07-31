@@ -94,24 +94,85 @@ class TestResources:
     async def test_reference_resources_are_registered(self, client):
         resources = await client.list_resources()
         uris = {str(r.uri) for r in resources}
-        assert "arxiv://reference/query-syntax" in uris
-        assert "arxiv://reference/categories" in uris
+
+        expected = {
+            "arxiv://reference/query-syntax",
+            "arxiv://reference/categories/cs",
+            "arxiv://reference/categories/econ",
+            "arxiv://reference/categories/eess",
+            "arxiv://reference/categories/math",
+            "arxiv://reference/categories/physics",
+            "arxiv://reference/categories/q-bio",
+            "arxiv://reference/categories/q-fin",
+            "arxiv://reference/categories/stat",
+        }
+
+        assert expected <= uris
 
     async def test_query_syntax_resource_has_content(self, client):
         result = await client.read_resource("arxiv://reference/query-syntax")
         assert result
+
         text = result[0].text
-        assert "ti:" in text and "AND" in text
+        assert "ti:" in text
+        assert "AND" in text
+
+    async def test_category_resources_have_content(self, client):
+        resources = [
+            "arxiv://reference/categories/cs",
+            "arxiv://reference/categories/econ",
+            "arxiv://reference/categories/eess",
+            "arxiv://reference/categories/math",
+            "arxiv://reference/categories/physics",
+            "arxiv://reference/categories/q-bio",
+            "arxiv://reference/categories/q-fin",
+            "arxiv://reference/categories/stat",
+        ]
+
+        for uri in resources:
+            result = await client.read_resource(uri)
+            assert result
+            assert result[0].text.strip()
 
 
 class TestPrompts:
     async def test_expected_prompts_registered(self, client):
         prompts = await client.list_prompts()
         names = {p.name for p in prompts}
-        assert {"literature_review", "explain_paper", "find_related_work"} <= names
+
+        expected = {
+            "literature_review",
+            "survey_generator",
+            "explain_paper",
+            "find_related_work",
+            "paper_comparison",
+            "author_profile",
+            "research_lineage",
+            "field_digest",
+            "gap_spotter",
+            "cross_domain_bridge",
+            "claim_check",
+            "paper_critique",
+            "research_timeline",
+            "state_of_the_art",
+            "paper_recommender",
+            "method_evolution",
+            "citation_summary",
+            "research_brief",
+            "research_mentor",
+            "novelty_checker",
+            "technique_selector",
+            "evidence_matrix",
+        }
+
+        assert expected <= names
 
     async def test_explain_paper_prompt_renders(self, client):
-        result = await client.get_prompt("explain_paper", {"arxiv_id": "1706.03762"})
+        result = await client.get_prompt(
+            "explain_paper",
+            {"arxiv_id": "1706.03762"},
+        )
+
         assert result.messages
         assert "1706.03762" in result.messages[0].content.text
 

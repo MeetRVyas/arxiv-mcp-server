@@ -1,4 +1,4 @@
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 FIND_RELATED_WORK = """
 # Objective
@@ -155,8 +155,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Discover and organize foundational, competing, complementary, and recent papers related to a research topic or paper.",
     )
     def find_related_work_prompt(topic_or_paper: str) -> str:
-        return FIND_RELATED_WORK.format(topic_or_paper = topic_or_paper)
-
+        return FIND_RELATED_WORK.format(topic_or_paper=topic_or_paper)
 
     @mcp.prompt(
         name="gap_spotter",
@@ -164,7 +163,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Identify evidence-backed research gaps, methodological limitations, conflicting findings, and promising future directions.",
     )
     def gap_spotter_prompt(topic: str) -> str:
-        return GAP_SPOTTER.format(topic = topic)
+        return GAP_SPOTTER.format(topic=topic)
 
     @mcp.prompt(
         name="novelty_checker",
@@ -172,8 +171,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Assess the originality of a research idea by comparing it against existing literature and identifying similar work.",
     )
     def novelty_checker_prompt(idea: str) -> str:
-        return NOVELTY_CHECKER.format(idea = idea)
-
+        return NOVELTY_CHECKER.format(idea=idea)
 
     @mcp.prompt(
         name="cross_domain_bridge",
@@ -181,7 +179,4 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Discover meaningful conceptual and methodological connections between two research domains.",
     )
     def cross_domain_bridge_prompt(domain_a: str, domain_b: str) -> str:
-        return CROSS_DOMAIN_BRIDGE.format(
-            domain_a = domain_a,
-            domain_b = domain_b
-        )
+        return CROSS_DOMAIN_BRIDGE.format(domain_a=domain_a, domain_b=domain_b)

@@ -41,9 +41,10 @@ _NO_KEY_DELAY = 1.1  # seconds; conservative for no-key usage
 _WITH_KEY_DELAY = 0.1  # seconds
 
 
-def _get_delay() :
+def _get_delay() -> float:
     settings = get_settings()
     return _WITH_KEY_DELAY if settings.semantic_scholar_api_key else _NO_KEY_DELAY
+
 
 # Single shared, thread-safe limiter (concurrency-and-reliability.md #3).
 _rate_limiter = RateLimiter(_get_delay())

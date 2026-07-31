@@ -1,4 +1,4 @@
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 PAPER_COMPARISON = """
 # Objective
@@ -158,10 +158,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Compare multiple research papers across methodology, assumptions, evaluation, strengths, limitations, and contributions.",
     )
     def paper_comparison_prompt(arxiv_ids: list[str]) -> str:
-        return PAPER_COMPARISON.format(
-            papers = "\n".join(f"- {paper_id}" for paper_id in arxiv_ids)
-        )
-
+        return PAPER_COMPARISON.format(papers="\n".join(f"- {paper_id}" for paper_id in arxiv_ids))
 
     @mcp.prompt(
         name="research_lineage",
@@ -169,8 +166,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Trace the intellectual foundations and evolution of ideas leading to an ArXiv paper.",
     )
     def research_lineage_prompt(arxiv_id: str) -> str:
-        return RESEARCH_LINEAGE.format(arxiv_id = arxiv_id)
-
+        return RESEARCH_LINEAGE.format(arxiv_id=arxiv_id)
 
     @mcp.prompt(
         name="paper_critique",
@@ -178,8 +174,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Critically evaluate an ArXiv paper by assessing its methodology, evidence, limitations, and long-term influence.",
     )
     def paper_critique_prompt(arxiv_id: str) -> str:
-        return PAPER_CRITIQUE.format(arxiv_id = arxiv_id)
-
+        return PAPER_CRITIQUE.format(arxiv_id=arxiv_id)
 
     @mcp.prompt(
         name="author_profile",
@@ -187,8 +182,7 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Analyze a researcher's publications, evolving research interests, major contributions, and scientific impact.",
     )
     def author_profile_prompt(author: str) -> str:
-        return AUTHOR_PROFILE.format(author = author)
-
+        return AUTHOR_PROFILE.format(author=author)
 
     @mcp.prompt(
         name="citation_summary",
@@ -196,4 +190,4 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Explain why a paper became influential by analyzing how later research adopted, extended, or challenged its ideas.",
     )
     def citation_summary_prompt(arxiv_id: str) -> str:
-        return CITATION_SUMMARY.format(arxiv_id = arxiv_id)
+        return CITATION_SUMMARY.format(arxiv_id=arxiv_id)
